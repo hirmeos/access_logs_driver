@@ -5,13 +5,10 @@ Bridge `process_download_logs` and `annotate_download_logs.py` producing CSV
 individual session (using `annotate_download_logs.py`) for every output file
 produced by `process_download_logs`
 """
-import sys
 import os
-import csv
 import json
 import subprocess
 import process_download_logs
-from logdata import LogStream
 from datetime import datetime, timedelta
 
 MODES = json.loads(os.getenv('MODES'))
@@ -56,6 +53,7 @@ def run():
         subprocess.call(cmd,
                         stdout=outstream(ses_file),
                         stdin=instream(out_file))
+
 
 if __name__ == '__main__':
     run()
