@@ -1,0 +1,151 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Take postprocessed logs and strip out multiple hits in sessions, and
+resolve URLs to the chosen `URI_SCHEME` (e.g. info:doi).
+
+Logs come in as a CSV of 4-tuples of type
+ (timestamp * IP address * URL * user agent)
+
+We strip out entries where the same (IP address * user agent) pair has accessed
+a URL within the last `SESSION_TIMEOUT` (e.g. half-hour)
+
+Additionally, we convert the URLs to ISBNs and collate request data by date,
+outputting a CSV for ingest via the stats system.
+"""
+
+import os
+import csv
+import sys
+import json
+import time
+import httplib2
+import argparse
+import datetime
+import unicodecsv
+
+SESSION_TIMEOUT = int(os.environ['SESSION_TIMEOUT'])
+ROLLOVER        = os.environ['ROLLOVER'] in ('True', 'true', 't', 1)
+URI_API_ENDP    = os.environ['URI_API_ENDP']
+URI_API_USER    = os.environ['URI_API_USER']
+URI_API_PASS    = os.environ['URI_API_PASS']
+AUTH_API_ENDP   = os.environ['AUTH_API_ENDP']
+URI_SCHEME      = os.environ['URI_SCHEME']
+URI_STRICT      = os.environ['URI_STRICT']
+
+
+def get_token(url, email, passwd):
+    h = httplib2.Http()
+    credentials = {'email': email, 'password': passwd}
+    headers = {'content-type': 'application/json'}
+    res, content = h.request(url, 'POST', json.dumps(credentials), headers)
+    try:
+        assert res.status == 200
+    except AssertionError:
+        raise ValueError(content)
+    return json.loads(content)['data'][0]['token']
+
+
+def url_to_id(url, timestamp):
+    req = "%s?uri=%s&filter=uri_scheme:%s&strict=%s" \
+          % (URI_API_ENDP, url, URI_SCHEME, URI_STRICT)
+    h = httplib2.Http()
+    res, content = h.request(req, 'GET', headers={'Authorization': AUTH})
+    try:
+        assert res.status == 200
+    except AssertionError:
+        r = json.loads(content)
+        print >>sys.stderr, "%s: %s (%s)" % (r['message'],
+                                             r['parameters']['uri'], timestamp)
+        sys.exit(1)
+
+    return json.loads(content)['data']
+
+
+def resolve(url_to_id):
+    """
+    Read in CSV data from stdin; lazily return a stream of tuples of
+    type: (timestamp * ip_address * uri * str), where the final <str>
+    is the user-agent string used by the browser; each tuple represents
+    an HTTP request.
+
+    `get_node` is a callback of type (url -> timestamp -> node | None)
+    """
+    r = csv.reader(sys.stdin)
+
+    for timestamp, ip_address, url, agent in r:
+        identifiers = url_to_id(url, timestamp)
+
+        ts = time.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+        ds = datetime.datetime(*ts[:6])
+
+        yield (ds, ip_address, identifiers, agent)
+
+
+def strip_sessions(get_node, session_timeout, rollover):
+    """
+    Take a lazy stream whose items are of type:
+     (timestamp * ip_address * uri * str)
+    and emit a lazy stream of items of type:
+     (date * ip_address, isbn)
+
+    Filter out some of the items, if some of them form part of the same session
+
+    See elsewhere for the semantics of the argument `get_node`
+
+    The switch `rollover` affects the behaviour of the machinery for
+    determining which requests form part of the same session; if False,
+    a session is no longer than `session_timeout`. If True, a session
+    may be longer than `session_timeout`, so long as `session_timeout`
+    has not elapsed between any two requests.
+    """
+
+    session = {}
+    for timestamp, ip_address, identifiers, agent in resolve(url_to_id):
+        for identifier in identifiers:
+            uri = identifier['URI']
+            browser = (ip_address, agent, uri)
+            if browser not in session:
+                session[browser] = timestamp
+            else:
+                last = session[browser]
+                if rollover:
+                    session[browser] = timestamp
+
+                offset = (timestamp - last).seconds
+                if offset < session_timeout:
+                    continue
+
+                if not rollover:
+                    session[browser] = timestamp
+
+            date = datetime.datetime(timestamp.year, timestamp.month,
+                                     timestamp.day)
+            yield date, ip_address, uri
+
+
+def run(measure):
+    hits = {}
+    for date, ip_address, uri in strip_sessions(
+            url_to_id, SESSION_TIMEOUT, ROLLOVER):
+        key = (date, uri)
+        if key not in hits:
+            hits[key] = 0
+        hits[key] += 1
+
+    w = unicodecsv.writer(sys.stdout)
+    w.writerow(('Measure', 'Timestamp', 'URI', 'Value'))
+
+    for key, value in hits.iteritems():
+        row = tuple([measure] + list(key) + [value])
+        w.writerow(row)
+
+
+API_JWTOKEN = get_token(AUTH_API_ENDP, URI_API_USER, URI_API_PASS)
+AUTH = 'Bearer ' + API_JWTOKEN
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--measure', '-m', required=True)
+    measure = parser.parse_args().measure
+    run(measure)

@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Bridge `process_download_logs` and `annotate_download_logs.py` producing CSV
+individual session (using `annotate_download_logs.py`) for every output file
+produced by `process_download_logs`
+"""
+import os
+import json
+import subprocess
+import process_download_logs
+from datetime import datetime, timedelta
+
+MODES = json.loads(os.getenv('MODES'))
+OUTDIR = os.environ['OUTDIR']
+CUTOFF_DAYS = int(os.environ['CUTOFF_DAYS'])
+
+
+def outstream(filename):
+    return open(filename, "w")
+
+
+def instream(filename):
+    return open(filename, "r")
+
+
+def get_sessions_filename(odir, name):
+    return "%s/sessions_%s.csv" % (odir, name)
+
+
+def old_or_empty_out_files():
+    cutoff = datetime.now() - timedelta(days=CUTOFF_DAYS)
+    for m in MODES:
+        out_file = process_download_logs.get_output_filename(OUTDIR, m['name'])
+        try:
+            size = os.path.getsize(out_file)
+            time = datetime.fromtimestamp(os.path.getctime(out_file))
+            assert size > 0 and time > cutoff
+        except BaseException:
+            return True
+    return False
+
+
+def run():
+    # produce output files if they are empty, missing, or older than cutoff
+    if old_or_empty_out_files():
+        process_download_logs.run()
+
+    for m in MODES:
+        out_file = process_download_logs.get_output_filename(OUTDIR, m['name'])
+        ses_file = get_sessions_filename(OUTDIR, m['name'])
+        cmd = ['./annotate_download_logs', '--measure', m['measure']]
+        subprocess.call(cmd,
+                        stdout=outstream(ses_file),
+                        stdin=instream(out_file))
+
+
+if __name__ == '__main__':
+    run()
