@@ -32,6 +32,7 @@ URI_API_PASS    = os.environ['URI_API_PASS']
 AUTH_API_ENDP   = os.environ['AUTH_API_ENDP']
 URI_SCHEME      = os.environ['URI_SCHEME']
 URI_STRICT      = os.environ['URI_STRICT']
+EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
 
 
 def get_token(url, email, passwd):
@@ -54,6 +55,8 @@ def url_to_id(url, timestamp):
     try:
         assert res.status == 200
     except AssertionError:
+        if url in EXCLUDED_URLS:
+            return []
         r = json.loads(content)
         print >>sys.stderr, "%s: %s (%s)" % (r['message'],
                                              r['parameters']['uri'], timestamp)
@@ -75,6 +78,10 @@ def resolve(url_to_id):
 
     for timestamp, ip_address, url, agent in r:
         identifiers = url_to_id(url, timestamp)
+
+        excluded = identifiers == []
+        if excluded:
+            continue
 
         ts = time.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
         ds = datetime.datetime(*ts[:6])

@@ -45,16 +45,12 @@ def make_filters(regexes):
     spiders = set()
     get_spiders(spiders)
     excluded = json.loads(os.getenv('EXCLUDED_IPS'))
-    excluded_urls = json.loads(os.getenv('EXCLUDED_URLS'))
 
     def not_known_spider(r):
         return r.user_agent not in spiders
 
     def not_excluded_ip(r):
         return r.ip_address not in excluded
-
-    def not_excluded_url(r):
-        return r.url not in excluded_urls
 
     def filter_url(r):
         for regex in regexes:
@@ -63,7 +59,7 @@ def make_filters(regexes):
         return False
 
     return [filter_url, only_successful, nostar, method_ok, no_plus_http,
-            not_known_spider, not_excluded_ip, not_excluded_url]
+            not_known_spider, not_excluded_ip]
 
 
 def output_stream(filename):
