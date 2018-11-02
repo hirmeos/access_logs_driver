@@ -33,6 +33,7 @@ AUTH_API_ENDP   = os.environ['AUTH_API_ENDP']
 URI_SCHEME      = os.environ['URI_SCHEME']
 URI_STRICT      = os.environ['URI_STRICT']
 EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
+CACHE           = {}
 
 
 def get_token(url, email, passwd):
@@ -48,6 +49,8 @@ def get_token(url, email, passwd):
 
 
 def url_to_id(url, timestamp):
+    if url in CACHE:
+        return CACHE[url]
     req = "%s?uri=%s&filter=uri_scheme:%s&strict=%s" \
           % (URI_API_ENDP, url, URI_SCHEME, URI_STRICT)
     h = httplib2.Http()
@@ -62,7 +65,10 @@ def url_to_id(url, timestamp):
                                              r['parameters']['uri'], timestamp)
         sys.exit(1)
 
-    return json.loads(content)['data']
+    entry = json.loads(content)['data']
+    CACHE[url] = entry
+
+    return entry
 
 
 def resolve(url_to_id):
