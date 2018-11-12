@@ -1,4 +1,6 @@
 # Log processing
+[![Build Status](https://travis-ci.org/hirmeos/log_analysis.svg?branch=master)](https://travis-ci.org/hirmeos/log_analysis)
+
 
 Iterate through a bunch of gzipped Apache HTTP log files
 Exclude bots, scrapers, etc., select URLs matching the provided regex(es), and generate a CSV of the relevant log entries.
