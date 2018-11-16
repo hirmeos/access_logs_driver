@@ -5,7 +5,9 @@ RUN apt-get update && apt-get upgrade -y && \
 
 WORKDIR /usr/src/app
 RUN mkdir output
+RUN mkdir cache
 VOLUME ["/usr/src/app/output"]
+VOLUME ["/usr/src/app/cache"]
 
 COPY ./config/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && \

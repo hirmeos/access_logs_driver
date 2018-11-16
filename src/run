@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 MODES = json.loads(os.getenv('MODES'))
 OUTDIR = os.environ['OUTDIR']
+CACHEDIR = os.environ['CACHEDIR']
 CUTOFF_DAYS = int(os.environ['CUTOFF_DAYS'])
 
 
@@ -31,7 +32,8 @@ def get_sessions_filename(odir, name):
 def old_or_empty_out_files():
     cutoff = datetime.now() - timedelta(days=CUTOFF_DAYS)
     for m in MODES:
-        out_file = process_download_logs.get_output_filename(OUTDIR, m['name'])
+        out_file = process_download_logs.get_output_filename(CACHEDIR,
+                                                             m['name'])
         try:
             size = os.path.getsize(out_file)
             time = datetime.fromtimestamp(os.path.getctime(out_file))
@@ -47,7 +49,8 @@ def run():
         process_download_logs.run()
 
     for m in MODES:
-        out_file = process_download_logs.get_output_filename(OUTDIR, m['name'])
+        out_file = process_download_logs.get_output_filename(CACHEDIR,
+                                                             m['name'])
         ses_file = get_sessions_filename(OUTDIR, m['name'])
         cmd = ['./annotate_download_logs', '--measure', m['measure']]
         subprocess.call(cmd,
