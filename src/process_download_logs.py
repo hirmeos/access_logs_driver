@@ -73,7 +73,7 @@ def get_output_filename(odir, name):
 def run():
     modes = json.loads(os.getenv('MODES'))
     logdir = os.environ['LOGDIR']
-    odir = os.environ['OUTDIR']
+    odir = os.environ['CACHEDIR']
 
     filter_groups = []
     for m in modes:

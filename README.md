@@ -19,5 +19,5 @@ outputting a CSV for ingest via the stats system.
 
 ## Run via crontab
 ```
-0 0 * * 0 docker run --rm --name "logs_analyser" --env-file /path/to/config.env -v /path/to/log/files:/logs:ro -v /somewhere/to/store/output:/usr/src/app/output openbookpublishers/log_analysis
+0 0 * * 0 docker run --rm --name "logs_analyser" --env-file /path/to/config.env -v /path/to/log/files:/logs:ro -v /somewhere/to/store/preprocessing:/usr/src/app/cache -v /somewhere/to/store/output:/usr/src/app/output openbookpublishers/log_analysis
 ```
