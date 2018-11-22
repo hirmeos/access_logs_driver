@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 
 COPY ./src/* ./
 
-RUN flake8 --ignore=E221,E241 ./
+RUN flake8 --ignore=E221,E241 ./*
+
+COPY ./config/spiders ./
 
 CMD ["./run"]
