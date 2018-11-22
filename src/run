@@ -55,10 +55,11 @@ def run():
         out_file = process_download_logs.get_output_filename(CACHEDIR,
                                                              m['name'])
         # only include headers in first iteration
-        headers = ['--add-headers'] if i == 0  else []
+        headers = ['--add-headers'] if i == 0 else []
         i += 1
         cmd = ['./annotate_download_logs', '--measure', m['measure']] + headers
         subprocess.call(cmd, stdout=output, stdin=instream(out_file))
+
 
 if __name__ == '__main__':
     run()
