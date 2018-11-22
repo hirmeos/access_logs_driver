@@ -20,9 +20,10 @@ import sys
 import json
 import time
 import httplib2
-import argparse
 import datetime
 import unicodecsv
+from optparse import OptionParser
+
 
 SESSION_TIMEOUT = int(os.environ['SESSION_TIMEOUT'])
 ROLLOVER        = os.environ['ROLLOVER'] in ('True', 'true', 't', 1)
@@ -34,6 +35,21 @@ URI_SCHEME      = os.environ['URI_SCHEME']
 URI_STRICT      = os.environ['URI_STRICT']
 EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
 CACHE           = {}
+ARGS = [
+    {
+        'val': '--measure',
+        'dest': 'measure',
+        'action': 'store',
+        'default': None,
+        'help': 'Measure URI, e.g. tag:operas.eu,2018:readership:obp-pdf'
+    }, {
+        'val': '--add-headers',
+        'dest': 'add_headers',
+        'action': 'store_true',
+        'default': [],
+        'help': 'Whether to print report headers'
+    }
+]
 
 
 def get_token(url, email, passwd):
@@ -46,6 +62,18 @@ def get_token(url, email, passwd):
     except AssertionError:
         raise ValueError(content)
     return json.loads(content)['data'][0]['token']
+
+
+def get_options(args):
+    parser = OptionParser()
+    for arg in args:
+        parser.add_option(arg['val'], dest=arg['dest'], default=arg['default'],
+                          action=arg['action'], help=arg['help'])
+    options, rest = parser.parse_args()
+
+    assert rest == []
+    assert options.measure
+    return options
 
 
 def url_to_id(url, timestamp):
@@ -137,7 +165,7 @@ def strip_sessions(get_node, session_timeout, rollover):
             yield date, ip_address, uri
 
 
-def run(measure):
+def run(measure, add_headers):
     hits = {}
     for date, ip_address, uri in strip_sessions(
             url_to_id, SESSION_TIMEOUT, ROLLOVER):
@@ -147,7 +175,8 @@ def run(measure):
         hits[key] += 1
 
     w = unicodecsv.writer(sys.stdout)
-    w.writerow(('Measure', 'Timestamp', 'URI', 'Country', 'Value'))
+    if add_headers:
+        w.writerow(('Measure', 'Timestamp', 'URI', 'Country', 'Value'))
 
     for key, value in hits.iteritems():
         row = tuple([measure] + list(key) + [""] + [value])
@@ -158,7 +187,5 @@ API_JWTOKEN = get_token(AUTH_API_ENDP, URI_API_USER, URI_API_PASS)
 AUTH = 'Bearer ' + API_JWTOKEN
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--measure', '-m', required=True)
-    measure = parser.parse_args().measure
-    run(measure)
+    options = get_options(ARGS)
+    run(options.measure, options.add_headers)

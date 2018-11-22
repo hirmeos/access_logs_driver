@@ -25,8 +25,8 @@ def instream(filename):
     return open(filename, "r")
 
 
-def get_sessions_filename(odir, name):
-    return "%s/sessions_%s.csv" % (odir, name)
+def get_sessions_filename(odir):
+    return "%s/AccessLogs.csv" % (odir)
 
 
 def old_or_empty_out_files():
@@ -48,15 +48,17 @@ def run():
     if old_or_empty_out_files():
         process_download_logs.run()
 
+    i = 0
+    ses_file = get_sessions_filename(OUTDIR)
+    output = outstream(ses_file)
     for m in MODES:
         out_file = process_download_logs.get_output_filename(CACHEDIR,
                                                              m['name'])
-        ses_file = get_sessions_filename(OUTDIR, m['name'])
-        cmd = ['./annotate_download_logs', '--measure', m['measure']]
-        subprocess.call(cmd,
-                        stdout=outstream(ses_file),
-                        stdin=instream(out_file))
-
+        # only include headers in first iteration
+        headers = ['--add-headers'] if i == 0  else []
+        i += 1
+        cmd = ['./annotate_download_logs', '--measure', m['measure']] + headers
+        subprocess.call(cmd, stdout=output, stdin=instream(out_file))
 
 if __name__ == '__main__':
     run()
