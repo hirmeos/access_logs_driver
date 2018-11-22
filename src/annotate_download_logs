@@ -147,10 +147,10 @@ def run(measure):
         hits[key] += 1
 
     w = unicodecsv.writer(sys.stdout)
-    w.writerow(('Measure', 'Timestamp', 'URI', 'Value'))
+    w.writerow(('Measure', 'Timestamp', 'URI', 'Country', 'Value'))
 
     for key, value in hits.iteritems():
-        row = tuple([measure] + list(key) + [value])
+        row = tuple([measure] + list(key) + [""] + [value])
         w.writerow(row)
 
 
