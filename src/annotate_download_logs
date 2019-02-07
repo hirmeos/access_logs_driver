@@ -176,10 +176,11 @@ def run(measure, add_headers):
 
     w = unicodecsv.writer(sys.stdout)
     if add_headers:
-        w.writerow(('Measure', 'Timestamp', 'URI', 'Country', 'Value'))
+        w.writerow(('measure_id', 'timestamp', 'work_uri',
+                    'country_uri', 'event_uri', 'value'))
 
     for key, value in hits.iteritems():
-        row = tuple([measure] + list(key) + [""] + [value])
+        row = tuple([measure] + list(key) + [''] + [''] + [value])
         w.writerow(row)
 
 
