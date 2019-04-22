@@ -9,9 +9,10 @@ import os
 import csv
 import sys
 import time
-import urllib2
 import datetime
 import subprocess
+import urllib.error
+import urllib.parse
 
 
 URL_PREFIX = os.environ['URL_PREFIX']
@@ -41,19 +42,19 @@ class Request(object):
             u = URL_PREFIX + url.lower()
             return u[:-1] if u[-1] == "/" else u
         except BaseException:
-            print >>sys.stderr, "Error parsing: " + url
+            print("Error parsing: " + url, file=sys.stderr)
             raise
 
     @staticmethod
     def convert_url(url):
         try:
             if url.startswith("http"):
-                u = urllib2.urlparse.urlparse(url).path
+                u = urllib.parse(url).path
             else:
                 u = url
             return re.sub(r'^//', '/', re.sub(r'([^:])/+', '\\1/', u))
         except BaseException:
-            print >>sys.stderr, "Error parsing: " + url
+            print("Error parsing: " + url, file=sys.stderr)
             raise
 
     def fmttime(self):
@@ -89,7 +90,7 @@ class LogStream(object):
         parts = line.split(" ", 3)
         ip_address, user1, user2, rest = parts
         if len(rest) < 30:
-            print ">>%s<<" % line
+            print(">>%s<<" % line)
         assert rest[28] == " ", line
         timestamp = rest[1:27]
 
@@ -101,7 +102,7 @@ class LogStream(object):
             if last_five.startswith('" '):
                 matches = re.compile(self.fallback_re).match(last_five)
             else:
-                print last_five
+                print(last_five)
                 raise
         request = matches.group(1).strip('"')
         response_code = int(matches.group(2))
@@ -113,7 +114,7 @@ class LogStream(object):
             referer = matches.group(1)
             user_agent = matches.group(2)
         except BaseException:
-            print referer_and_ua
+            print(referer_and_ua)
             raise
 
         valid = True
