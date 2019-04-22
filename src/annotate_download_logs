@@ -21,7 +21,6 @@ import json
 import time
 import httplib2
 import datetime
-import unicodecsv
 from optparse import OptionParser
 
 
@@ -89,13 +88,11 @@ def url_to_id(url, timestamp):
         if url in EXCLUDED_URLS:
             return []
         r = json.loads(content)
-        print >>sys.stderr, "%s: %s (%s)" % (r['message'],
-                                             r['parameters']['uri'], timestamp)
+        p = (r['message'], r['parameters']['uri'], timestamp)
+        print("%s: %s (%s)" % p, file=sys.stderr)
         sys.exit(1)
-
     entry = json.loads(content)['data']
     CACHE[url] = entry
-
     return entry
 
 
@@ -174,12 +171,12 @@ def run(measure, add_headers):
             hits[key] = 0
         hits[key] += 1
 
-    w = unicodecsv.writer(sys.stdout)
+    w = csv.writer(sys.stdout)
     if add_headers:
         w.writerow(('measure_id', 'timestamp', 'work_uri',
                     'country_uri', 'event_uri', 'value'))
 
-    for key, value in hits.iteritems():
+    for key, value in hits.items():
         row = tuple([measure] + list(key) + [''] + [''] + [value])
         w.writerow(row)
 

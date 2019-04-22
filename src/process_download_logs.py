@@ -21,8 +21,8 @@ from logdata import LogStream
 # Import the list of user agent strings identifying known web crawlers,
 # bots, spiders, etc
 def get_spiders(spiders):
-    with file(os.path.join(os.path.dirname(__file__), 'spiders')) as f:
-        [spiders.add(line.strip("\n")) for line in f.readlines()]
+    f = open(os.path.join(os.path.dirname(__file__), 'spiders'), 'r')
+    [spiders.add(line.strip("\n")) for line in f.readlines()]
 
 
 def only_successful(r):
@@ -63,7 +63,7 @@ def make_filters(regexes):
 
 
 def output_stream(filename):
-    return file(filename, "w")
+    return open(filename, "w")
 
 
 def get_output_filename(odir, name):
