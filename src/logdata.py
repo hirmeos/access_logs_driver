@@ -49,7 +49,7 @@ class Request(object):
     def convert_url(url):
         try:
             if url.startswith("http"):
-                u = urllib.parse(url).path
+                u = urllib.parse.urlparse(url).path
             else:
                 u = url
             return re.sub(r'^//', '/', re.sub(r'([^:])/+', '\\1/', u))
@@ -161,7 +161,7 @@ class LogStream(object):
            `self.filters' to these requests; if any predicate fails, ignore
            the request and do not generate it for downstream processing"""
         for line in self.lines():
-            i = self.line_to_request(line)
+            i = self.line_to_request(line.decode('utf-8'))
             if not i.valid:
                 continue
             for filter_group in self.filter_groups:
