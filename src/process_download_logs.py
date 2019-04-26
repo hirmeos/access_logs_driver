@@ -21,7 +21,8 @@ from logdata import LogStream
 # Import the list of user agent strings identifying known web crawlers,
 # bots, spiders, etc
 def get_spiders(spiders):
-    f = open(os.path.join(os.path.dirname(__file__), 'spiders'), 'r')
+    path = os.path.join(os.path.dirname(__file__), 'spiders')
+    f = open(path, 'r', encoding='ISO-8859-1')
     [spiders.add(line.strip("\n")) for line in f.readlines()]
 
 
