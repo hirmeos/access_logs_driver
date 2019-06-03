@@ -179,7 +179,7 @@ class LogStream(object):
     def __iter__(self):
         for i in self.relevant_requests():
             yield i
-        raise StopIteration
+        return
 
     def to_csvs(self):
         streams = [stream for stream, filters, regex in self.filter_groups]
