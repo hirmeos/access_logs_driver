@@ -125,7 +125,7 @@ def strip_sessions(get_node, session_timeout, rollover):
     Take a lazy stream whose items are of type:
      (timestamp * ip_address * uri * str)
     and emit a lazy stream of items of type:
-     (date * ip_address, isbn)
+     (date * ip_address * isbn)
 
     Filter out some of the items, if some of them form part of the same session
 
