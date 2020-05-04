@@ -96,19 +96,19 @@ def url_to_id(url, timestamp):
     return entry
 
 
-def resolve(url_to_id):
+def resolve(get_id):
     """
     Read in CSV data from stdin; lazily return a stream of tuples of
     type: (timestamp * ip_address * uri * str), where the final <str>
     is the user-agent string used by the browser; each tuple represents
     an HTTP request.
 
-    `get_node` is a callback of type (url -> timestamp -> node | None)
+    `get_id` is a callback of type (url -> timestamp -> node | None)
     """
     r = csv.reader(sys.stdin)
 
     for timestamp, ip_address, url, agent in r:
-        identifiers = url_to_id(url, timestamp)
+        identifiers = get_id(url, timestamp)
 
         excluded = identifiers == []
         if excluded:
@@ -120,7 +120,7 @@ def resolve(url_to_id):
         yield (ds, ip_address, identifiers, agent)
 
 
-def strip_sessions(get_node, session_timeout, rollover):
+def strip_sessions(get_id, session_timeout, rollover):
     """
     Take a lazy stream whose items are of type:
      (timestamp * ip_address * uri * str)
@@ -129,7 +129,7 @@ def strip_sessions(get_node, session_timeout, rollover):
 
     Filter out some of the items, if some of them form part of the same session
 
-    See elsewhere for the semantics of the argument `get_node`
+    See elsewhere for the semantics of the argument `get_id`
 
     The switch `rollover` affects the behaviour of the machinery for
     determining which requests form part of the same session; if False,
@@ -139,7 +139,7 @@ def strip_sessions(get_node, session_timeout, rollover):
     """
 
     session = {}
-    for timestamp, ip_address, identifiers, agent in resolve(url_to_id):
+    for timestamp, ip_address, identifiers, agent in resolve(get_id):
         for identifier in identifiers:
             uri = identifier['URI']
             browser = (ip_address, agent, uri)
