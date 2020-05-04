@@ -162,11 +162,15 @@ def strip_sessions(get_id, session_timeout, rollover):
             yield date, ip_address, uri
 
 
+def lookup_country(ip_address, date):
+    return ''
+
+
 def run(measure, add_headers):
     hits = {}
     for date, ip_address, uri in strip_sessions(
             url_to_id, SESSION_TIMEOUT, ROLLOVER):
-        country_uri = ''
+        country_uri = lookup_country(ip_address, date)
         key = (date, uri, country_uri)
         if key not in hits:
             hits[key] = 0
