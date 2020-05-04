@@ -166,7 +166,8 @@ def run(measure, add_headers):
     hits = {}
     for date, ip_address, uri in strip_sessions(
             url_to_id, SESSION_TIMEOUT, ROLLOVER):
-        key = (date, uri)
+        country_uri = ''
+        key = (date, uri, country_uri)
         if key not in hits:
             hits[key] = 0
         hits[key] += 1
@@ -176,8 +177,8 @@ def run(measure, add_headers):
         w.writerow(('measure_id', 'timestamp', 'work_uri',
                     'country_uri', 'event_uri', 'value'))
 
-    for key, value in hits.items():
-        row = tuple([measure] + list(key) + [''] + [''] + [value])
+    for key, value, country_uri in hits.items():
+        row = tuple([measure] + list(key) + [country_uri] + [''] + [value])
         w.writerow(row)
 
 
