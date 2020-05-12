@@ -33,4 +33,3 @@ class GeoLookup(object):
             return ''
         else:
             return self.prefix + row[0]
-
