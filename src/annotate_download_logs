@@ -169,7 +169,7 @@ def project_hits():
     Project the session data down to three dimensions: (date, URI and country).
     Sum the number of items relating to each unique value of that triple.
     """
-    geo = geolookup.GeoLookup(GEO_LOOKUP_PATH)
+    geo = GeoLookup(GEO_LOOKUP_PATH)
     hits = {}
     for date, ip_address, uri in strip_sessions(
             url_to_id, SESSION_TIMEOUT, ROLLOVER):
