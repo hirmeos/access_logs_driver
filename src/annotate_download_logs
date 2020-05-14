@@ -22,6 +22,7 @@ import time
 import httplib2
 import datetime
 from optparse import OptionParser
+from geolookup import GeoLookup
 
 
 SESSION_TIMEOUT = int(os.environ['SESSION_TIMEOUT'])
@@ -32,6 +33,7 @@ URI_API_PASS    = os.environ['URI_API_PASS']
 AUTH_API_ENDP   = os.environ['AUTH_API_ENDP']
 URI_SCHEME      = os.environ['URI_SCHEME']
 URI_STRICT      = os.environ['URI_STRICT']
+GEO_LOOKUP_PATH = os.environ.get('GEO_LOOKUP_PATH', None)
 EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
 CACHE           = {}
 ARGS = [
@@ -162,19 +164,25 @@ def strip_sessions(get_id, session_timeout, rollover):
             yield date, ip_address, uri
 
 
-def lookup_country(ip_address, date):
-    return ''
-
-
-def run(measure, add_headers):
+def project_hits():
+    """
+    Project the session data down to three dimensions: (date, URI and country).
+    Sum the number of items relating to each unique value of that triple.
+    """
+    geo = geolookup.GeoLookup(GEO_LOOKUP_PATH)
     hits = {}
     for date, ip_address, uri in strip_sessions(
             url_to_id, SESSION_TIMEOUT, ROLLOVER):
-        country_uri = lookup_country(ip_address, date)
+        country_uri = geo.lookup_country(ip_address, date)
         key = (date, uri, country_uri)
         if key not in hits:
             hits[key] = 0
         hits[key] += 1
+    return hits
+
+
+def run(measure, add_headers):
+    hits = project_hits()
 
     w = csv.writer(sys.stdout)
     if add_headers:
