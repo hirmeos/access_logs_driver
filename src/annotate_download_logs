@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Take postprocessed logs and strip out multiple hits in sessions, and
@@ -189,8 +189,8 @@ def run(measure, add_headers):
         w.writerow(('measure_id', 'timestamp', 'work_uri',
                     'country_uri', 'event_uri', 'value'))
 
-    for key, value, country_uri in hits.items():
-        row = tuple([measure] + list(key) + [country_uri] + [''] + [value])
+    for key, value in hits.items():
+        row = tuple([measure] + list(key) + [''] + [value])
         w.writerow(row)
 
 
