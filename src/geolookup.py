@@ -31,7 +31,7 @@ class GeoLookup(object):
             return ''
         time_now = date.timestamp()
         time_max = time_now + 86400 * 180
-        time_min = time_max - 86400 - 180
+        time_min = time_max - 86400 * 180
         args = (ip_address, time_min, time_max)
         self.cursor.execute(self.query, args)
         row = self.cursor.fetchone()
