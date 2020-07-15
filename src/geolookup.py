@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
 """
 Look up the country associated with an IP address at a particular time.
 """
 
 
+import sys
+import time
+import datetime
 from sqlite3 import dbapi2 as sqlite
 
 
