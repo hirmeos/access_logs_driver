@@ -29,11 +29,25 @@ class GeoLookup(object):
     def lookup_country(self, ip_address, date):
         if self.db is None:
             return ''
-        time_max = date.timestamp()
-        time_min = time_max - 86400 * 180
-        self.cursor.execute(self.query, (ip_address, time_min, time_max))
+        time_now = date.timestamp()
+        time_max = time_now + 86400 * 180
+        time_min = time_max - 86400 - 180
+        args = (ip_address, time_min, time_max)
+        self.cursor.execute(self.query, args)
         row = self.cursor.fetchone()
         if row is None:
             return ''
         else:
             return self.prefix + row[0]
+
+
+def run():
+    _, ip_address, timestamp = sys.argv
+    ts = time.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+    ds = datetime.datetime(*ts[:6])
+    geo = GeoLookup("/logs/ip_addresses.db")
+    print(geo.lookup_country(ip_address, ds))
+
+
+if __name__ == '__main__':
+    run()
