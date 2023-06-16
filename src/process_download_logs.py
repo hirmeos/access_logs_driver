@@ -59,8 +59,15 @@ def make_filters(regexes):
                 return True
         return False
 
-    return [filter_url, only_successful, nostar, method_ok, no_plus_http,
-            not_known_spider, not_excluded_ip]
+    return [
+        filter_url,
+        only_successful,
+        nostar,
+        method_ok,
+        no_plus_http,
+        not_known_spider,
+        not_excluded_ip
+    ]
 
 
 def output_stream(filename):
@@ -79,9 +86,11 @@ def run():
     filter_groups = []
     for m in modes:
         filename = get_output_filename(odir, m['name'])
-        filters = (output_stream(filename),
-                   make_filters(m['regex']),
-                   m['regex'])
+        filters = (
+            output_stream(filename),
+            make_filters(m['regex']),
+            m['regex']
+        )
         filter_groups.append(filters)
 
     logs = LogStream(logdir, filter_groups)

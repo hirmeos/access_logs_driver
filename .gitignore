@@ -2,3 +2,7 @@ config.env
 logs/
 output/
 cache/
+
+.idea
+load_env.bash
+__pycache__/

@@ -21,8 +21,18 @@ URL_PREFIX = os.environ['URL_PREFIX']
 class Request(object):
     """Represent the data in a single line of the Apache log file."""
 
-    def __init__(self, ip_address, timestamp, method, url, response_code,
-                 content_length, referer, user_agent, valid):
+    def __init__(
+            self,
+            ip_address,
+            timestamp,
+            method,
+            url,
+            response_code,
+            content_length,
+            referer,
+            user_agent,
+            valid
+    ):
         assert response_code >= 100
         assert response_code < 1000
         assert content_length >= 0
@@ -87,8 +97,16 @@ class LogStream(object):
 
     # Generate Request objects for each line in the input stream
     def line_to_request(self, line):
-        parts = line.split(" ", 3)
-        ip_address, user1, user2, rest = parts
+        """
+        The way our logs are formatted requires an additional part.
+
+        Our logs begin with host, which the driver does nto consider by
+        default - and obviously, we can't assume other logs match our format.
+
+        i.e. this may need to be configurable...
+        """
+        parts = line.split(" ", 4)
+        host, ip_address, user1, user2, rest = parts
         if len(rest) < 30:
             print(">>%s<<" % line)
         assert rest[28] == " ", line
@@ -98,7 +116,7 @@ class LogStream(object):
         last_five = rest[30:]
 
         matches = self.request_re.match(last_five)
-        if matches is None:
+        if not matches:
             if last_five.startswith('" '):
                 matches = re.compile(self.fallback_re).match(last_five)
             else:
@@ -125,8 +143,17 @@ class LogStream(object):
             url = ""
             valid = False
 
-        return Request(ip_address, timestamp, method, url, response_code,
-                       content_length, referer, user_agent, valid)
+        return Request(
+            ip_address,
+            timestamp,
+            method,
+            url,
+            response_code,
+            content_length,
+            referer,
+            user_agent,
+            valid
+        )
 
     def unzip(self, filename):
         proc = subprocess.Popen(["zcat", filename], stdout=subprocess.PIPE)
@@ -136,12 +163,24 @@ class LogStream(object):
     # Generate a list of matching logfile names in the directory
     def logfile_names(self):
         for path in sorted(os.listdir(self.log_dir)):
-            if not path.startswith("access.log"):
+
+            """Note - can't assume logs start with 'access.log' - e.g. our log 
+            names have the format <service>_<code>_access.log-<datestamp>.gz
+            """
+            if 'access.log' not in path or not path.endswith(".gz"):
                 continue
-            if not path.endswith(".gz"):
-                continue
-            match = re.search(r'\d{4}-\d{2}-\d{2}', path)
-            timestamp = match.group()
+
+            """The timestamp in our logs also don't include a '-'
+            i.e. they would end like this: access.log-20230602.gz
+            """
+            match_pattern = re.compile(
+                r'(?P<year>\d{4})-?(?P<month>\d{2})-?(?P<day>\d{2})'
+            )
+            match = match_pattern.search(path)
+            date_dict = match.groupdict()
+            timestamp = (
+                f"{date_dict['year']}-{date_dict['month']}-{date_dict['day']}"
+            )
             try:
                 time.strptime(timestamp, '%Y-%m-%d')
             except ValueError:

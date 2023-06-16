@@ -1,2 +1,5 @@
 flake8==3.6.0
 httplib2==0.12.1
+
+# New requirements
+hirmeos-clients>=0.1.6

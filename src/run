@@ -32,8 +32,10 @@ def get_sessions_filename(odir):
 def old_or_empty_out_files():
     cutoff = datetime.now() - timedelta(days=CUTOFF_DAYS)
     for m in MODES:
-        out_file = process_download_logs.get_output_filename(CACHEDIR,
-                                                             m['name'])
+        out_file = process_download_logs.get_output_filename(
+            CACHEDIR,
+            m['name']
+        )
         try:
             size = os.path.getsize(out_file)
             time = datetime.fromtimestamp(os.path.getctime(out_file))
@@ -52,8 +54,10 @@ def run():
     ses_file = get_sessions_filename(OUTDIR)
     output = outstream(ses_file)
     for m in MODES:
-        out_file = process_download_logs.get_output_filename(CACHEDIR,
-                                                             m['name'])
+        out_file = process_download_logs.get_output_filename(
+            CACHEDIR,
+            m['name']
+        )
         # only include headers in first iteration
         headers = ['--add-headers'] if i == 0 else []
         i += 1

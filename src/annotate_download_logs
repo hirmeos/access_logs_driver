@@ -21,7 +21,10 @@ import json
 import time
 import httplib2
 import datetime
-from optparse import OptionParser
+from optparse import OptionParser  # Deprecated since version 3.2: https://docs.python.org/3/library/optparse.html
+
+from hirmeos_clients import TokenClient
+
 from geolookup import GeoLookup
 
 
@@ -36,6 +39,8 @@ URI_STRICT      = os.environ['URI_STRICT']
 GEO_LOOKUP_PATH = os.environ.get('GEO_LOOKUP_PATH', None)
 EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
 CACHE           = {}
+TOKENS_KEY = os.getenv('TOKENS_KEY')
+
 ARGS = [
     {
         'val': '--measure',
@@ -54,6 +59,13 @@ ARGS = [
 
 
 def get_token(url, email, passwd):
+    if TOKENS_KEY:
+        """Very messy code fix - allow the tokens_client to be used instead of 
+        requesting a token from the tokens api.
+        """
+        tokens_client = TokenClient(tokens_key=TOKENS_KEY)
+        return tokens_client.token
+
     h = httplib2.Http()
     credentials = {'email': email, 'password': passwd}
     headers = {'content-type': 'application/json'}
@@ -68,8 +80,13 @@ def get_token(url, email, passwd):
 def get_options(args):
     parser = OptionParser()
     for arg in args:
-        parser.add_option(arg['val'], dest=arg['dest'], default=arg['default'],
-                          action=arg['action'], help=arg['help'])
+        parser.add_option(
+            arg['val'],
+            dest=arg['dest'],
+            default=arg['default'],
+            action=arg['action'],
+            help=arg['help']
+        )
     options, rest = parser.parse_args()
 
     assert rest == []
