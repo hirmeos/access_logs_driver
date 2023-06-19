@@ -14,13 +14,14 @@ Additionally, we convert the URLs to ISBNs and collate request data by date,
 outputting a CSV for ingest via the stats system.
 """
 
-import os
 import csv
-import sys
-import json
-import time
-import httplib2
 import datetime
+import httplib2
+import json
+import os
+import sys
+import time
+
 from optparse import OptionParser  # Deprecated since version 3.2: https://docs.python.org/3/library/optparse.html
 
 from hirmeos_clients import TokenClient
@@ -29,16 +30,16 @@ from geolookup import GeoLookup
 
 
 SESSION_TIMEOUT = int(os.environ['SESSION_TIMEOUT'])
-ROLLOVER        = os.environ['ROLLOVER'] in ('True', 'true', 't', 1)
-URI_API_ENDP    = os.environ['URI_API_ENDP']
-URI_API_USER    = os.environ['URI_API_USER']
-URI_API_PASS    = os.environ['URI_API_PASS']
-AUTH_API_ENDP   = os.environ['AUTH_API_ENDP']
-URI_SCHEME      = os.environ['URI_SCHEME']
-URI_STRICT      = os.environ['URI_STRICT']
+ROLLOVER = os.environ['ROLLOVER'] in ('True', 'true', 't', 1)
+URI_API_ENDP = os.environ['URI_API_ENDP']
+URI_API_USER = os.environ['URI_API_USER']
+URI_API_PASS = os.environ['URI_API_PASS']
+AUTH_API_ENDP = os.environ['AUTH_API_ENDP']
+URI_SCHEME = os.environ['URI_SCHEME']
+URI_STRICT = os.environ['URI_STRICT']
 GEO_LOOKUP_PATH = os.environ.get('GEO_LOOKUP_PATH', None)
-EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
-CACHE           = {}
+EXCLUDED_URLS = json.loads(os.getenv('EXCLUDED_URLS'))
+CACHE = {}
 TOKENS_KEY = os.getenv('TOKENS_KEY')
 
 ARGS = [

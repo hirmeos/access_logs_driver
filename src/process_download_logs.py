@@ -18,9 +18,13 @@ import json
 from logdata import LogStream
 
 
-# Import the list of user agent strings identifying known web crawlers,
-# bots, spiders, etc
 def get_spiders(spiders):
+    """ Import the list of user agent strings identifying known web crawlers,
+    bots, spiders, etc
+
+    Args:
+        spiders (_type_): _description_
+    """
     path = os.path.join(os.path.dirname(__file__), 'spiders')
     f = open(path, 'r', encoding='ISO-8859-1')
     [spiders.add(line.strip("\n")) for line in f.readlines()]

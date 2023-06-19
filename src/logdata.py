@@ -100,7 +100,7 @@ class LogStream(object):
         """
         The way our logs are formatted requires an additional part.
 
-        Our logs begin with host, which the driver does nto consider by
+        Our logs begin with host, which the driver does not consider by
         default - and obviously, we can't assume other logs match our format.
 
         i.e. this may need to be configurable...
@@ -164,7 +164,7 @@ class LogStream(object):
     def logfile_names(self):
         for path in sorted(os.listdir(self.log_dir)):
 
-            """Note - can't assume logs start with 'access.log' - e.g. our log 
+            """Note - can't assume logs start with 'access.log' - e.g. our log
             names have the format <service>_<code>_access.log-<datestamp>.gz
             """
             if 'access.log' not in path or not path.endswith(".gz"):

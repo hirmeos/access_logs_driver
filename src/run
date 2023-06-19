@@ -63,6 +63,8 @@ def run():
         i += 1
         cmd = ['./annotate_download_logs', '--measure', m['measure']] + headers
         subprocess.call(cmd, stdout=output, stdin=instream(out_file))
+        result = subprocess.run(cmd, stdout=output, stdin=instream(out_file))
+        result.stdout
 
 
 if __name__ == '__main__':
