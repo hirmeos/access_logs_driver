@@ -15,6 +15,9 @@ Output is as a CSV of 4-tuples of type
 import re
 import os
 import json
+from typing import BinaryIO
+from requests import request
+
 from logdata import LogStream
 
 
@@ -30,36 +33,36 @@ def get_spiders(spiders):
     [spiders.add(line.strip("\n")) for line in f.readlines()]
 
 
-def only_successful(r):
-    return r.response_code in [200, 304]
+def only_successful(request: request) -> request:
+    return request.response_code in [200, 304]
 
 
-def nostar(r):
-    return r.url != "*"
+def nostar(request: request) -> str:
+    return request.url != "*"
 
 
-def method_ok(r):
-    return r.method == "GET" or r.method == "POST"
+def method_ok(request: request) -> str:
+    return request.method == "GET" or request.method == "POST"
 
 
-def no_plus_http(r):
-    return "+http" not in r.user_agent
+def no_plus_http(request):
+    return "+http" not in request.user_agent
 
 
-def make_filters(regexes):
+def make_filters(regexes: re) -> list:
     spiders = set()
     get_spiders(spiders)
     excluded = json.loads(os.getenv('EXCLUDED_IPS'))
 
-    def not_known_spider(r):
-        return r.user_agent not in spiders
+    def not_known_spider(request):
+        return request.user_agent not in spiders
 
-    def not_excluded_ip(r):
-        return r.ip_address not in excluded
+    def not_excluded_ip(request):
+        return request.ip_address not in excluded
 
-    def filter_url(r):
+    def filter_url(request):
         for regex in regexes:
-            if re.search(re.compile(regex), r.url) is not None:
+            if re.search(re.compile(regex), request.url) is not None:
                 return True
         return False
 
@@ -74,12 +77,12 @@ def make_filters(regexes):
     ]
 
 
-def output_stream(filename):
+def output_stream(filename: str) -> BinaryIO:
     return open(filename, "w")
 
 
-def get_output_filename(odir, name):
-    return "%s/output_%s.csv" % (odir, name)
+def get_output_filename(odir, name) -> str:
+    return f"{odir}/output_{name}.csv"
 
 
 def run():

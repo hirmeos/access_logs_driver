@@ -11,27 +11,28 @@ import sys
 import time
 import datetime
 import subprocess
+from typing import Iterator
 import urllib.error
 import urllib.parse
 
+from requests import request
 
-URL_PREFIX = os.environ['URL_PREFIX']
+URL_PREFIX = os.environ.get('URL_PREFIX')
 
 
 class Request(object):
     """Represent the data in a single line of the Apache log file."""
-
     def __init__(
-            self,
-            ip_address,
-            timestamp,
-            method,
-            url,
-            response_code,
-            content_length,
-            referer,
-            user_agent,
-            valid
+        self,
+        ip_address: str,
+        timestamp: str,
+        method: str,
+        url: str,
+        response_code: int,
+        content_length: int,
+        referer: str,
+        user_agent: str,
+        valid: bool,
     ):
         assert response_code >= 100
         assert response_code < 1000
@@ -47,16 +48,17 @@ class Request(object):
         self.valid = valid
 
     @staticmethod
-    def normalise_url(url):
+    def normalise_url(url: str) -> str:
         try:
-            u = URL_PREFIX + url.lower()
-            return u[:-1] if u[-1] == "/" else u
+            if url[-1] == "/":
+                return url[:-1]
+            return url
         except BaseException:
-            print("Error parsing: " + url, file=sys.stderr)
+            print(f"Error parsing: {url}, {sys.stderr}")
             raise
 
     @staticmethod
-    def convert_url(url):
+    def convert_url(url: str) -> str:
         try:
             if url.startswith("http"):
                 u = urllib.parse.urlparse(url).path
@@ -64,21 +66,20 @@ class Request(object):
                 u = url
             return re.sub(r'^//', '/', re.sub(r'([^:])/+', '\\1/', u))
         except BaseException:
-            print("Error parsing: " + url, file=sys.stderr)
+            print(f"Error parsing: {url}, {sys.stderr}")
             raise
 
-    def fmttime(self):
+    def fmttime(self) -> datetime:
         fmt = "%Y-%m-%d %H:%M:%S"
         return datetime.datetime(*self.timestamp[:6]).strftime(fmt)
 
-    def __str__(self):
-        return "Request(%s, %s, %s)" % (self.fmttime(), self.ip_address,
-                                        self.url)
+    def __str__(self) -> str:
+        return f"Request {self.fmttime()}, {self.ip_address}, {self.url}"
 
-    def as_tuple(self):
+    def as_tuple(self) -> tuple[datetime.datetime, int, str]:
         return (self.fmttime(), self.ip_address, self.url, self.user_agent)
 
-    def sanitise_url(self, regexes):
+    def sanitise_url(self, regexes: str) -> None:
         for regex in regexes:
             matched = re.search(re.compile(regex), self.url)
             if matched is not None:
@@ -87,16 +88,14 @@ class Request(object):
 
 
 class LogStream(object):
-    def __init__(self, log_dir, filter_groups):
+    def __init__(self, log_dir: str, filter_groups: list) -> None:
         self.log_dir = log_dir
         self.filter_groups = filter_groups
-
     request_re = re.compile(r'^(.*[^\\]") ([0-9]+) ([0-9]+) (.*)$')
     r_n_ua_re = re.compile(r'^"(.*)" "(.*)" *$')
     fallback_re = r'^()" ([0-9]+) ([0-9]+) (.*)$'
 
-    # Generate Request objects for each line in the input stream
-    def line_to_request(self, line):
+    def line_to_request(self, line: str) -> request:
         """
         The way our logs are formatted requires an additional part.
 
@@ -106,9 +105,9 @@ class LogStream(object):
         i.e. this may need to be configurable...
         """
         parts = line.split(" ", 4)
-        host, ip_address, user1, user2, rest = parts
+        _, ip_address, _, _, rest = parts
         if len(rest) < 30:
-            print(">>%s<<" % line)
+            print(f">>{line}<<")
         assert rest[28] == " ", line
         timestamp = rest[1:27]
 
@@ -137,12 +136,13 @@ class LogStream(object):
 
         valid = True
         try:
-            method, url, version = request.split()
+            # version is unused
+            method, url, _ = request.split()
         except ValueError:
             method = None
             url = ""
             valid = False
-
+        url = URL_PREFIX + url.lower()
         return Request(
             ip_address,
             timestamp,
@@ -152,19 +152,19 @@ class LogStream(object):
             content_length,
             referer,
             user_agent,
-            valid
+            valid,
         )
 
-    def unzip(self, filename):
+    def unzip(self, filename: str) -> subprocess:
         proc = subprocess.Popen(["zcat", filename], stdout=subprocess.PIPE)
         output = proc.communicate()[0]
         return output
 
-    # Generate a list of matching logfile names in the directory
-    def logfile_names(self):
+    def logfile_names(self) -> Iterator[str]:
         for path in sorted(os.listdir(self.log_dir)):
-
-            """Note - can't assume logs start with 'access.log' - e.g. our log
+            """
+            Generate a list of matching logfile names in the directory
+            Note - can't assume logs start with 'access.log' - e.g. our log
             names have the format <service>_<code>_access.log-<datestamp>.gz
             """
             if 'access.log' not in path or not path.endswith(".gz"):
@@ -188,40 +188,41 @@ class LogStream(object):
 
             yield os.path.join(self.log_dir, path)
 
-    # Generate a stream of lines from the zipped log files
-    def lines(self):
+    def lines(self) -> Iterator[str]:
+        """Generate a stream of lines from the zipped log files."""
         for logfile in self.logfile_names():
             data = self.unzip(logfile)
             for line in data.splitlines():
                 yield line
 
-    def relevant_requests(self):
+    def relevant_requests(self) -> Iterator[tuple]:
         """Generate a filtered stream of requests; apply the predicate list
            `self.filters' to these requests; if any predicate fails, ignore
-           the request and do not generate it for downstream processing"""
+           the request and do not generate it for downstream processing."""
         for line in self.lines():
-            i = self.line_to_request(line.decode('utf-8'))
-            if not i.valid:
+            line_request = self.line_to_request(line.decode('utf-8'))
+            if not line_request.valid:
                 continue
             for filter_group in self.filter_groups:
                 ok = True
                 stream, filters, regex = filter_group
                 for f in filters:
-                    if not f(i):
+                    if not f(line_request):
                         ok = False
                         break
                 if not ok:
                     continue
-                i.sanitise_url(regex)
-                yield (stream, i)
+                line_request.sanitise_url(regex)
+                yield (stream, line_request)
 
     def __iter__(self):
         for i in self.relevant_requests():
             yield i
         return
 
-    def to_csvs(self):
-        streams = [stream for stream, filters, regex in self.filter_groups]
+    def to_csvs(self) -> None:
+        """filters, regex are not used in self.filter_groups."""
+        streams = [stream for stream, _, _ in self.filter_groups]
         csv_writers = {}
         for stream in streams:
             w = csv.writer(stream)

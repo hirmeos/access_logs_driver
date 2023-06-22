@@ -8,6 +8,7 @@ produced by `process_download_logs`
 import os
 import json
 import subprocess
+from typing import BinaryIO
 import process_download_logs
 from datetime import datetime, timedelta
 
@@ -17,24 +18,24 @@ CACHEDIR = os.environ['CACHEDIR']
 CUTOFF_DAYS = int(os.environ['CUTOFF_DAYS'])
 
 
-def outstream(filename):
+def outstream(filename: str) -> BinaryIO:
     return open(filename, "w")
 
 
-def instream(filename):
+def instream(filename: str) -> BinaryIO:
     return open(filename, "r")
 
 
-def get_sessions_filename(odir):
-    return "%s/AccessLogs.csv" % (odir)
+def get_sessions_filename(odir: str) -> str:
+    return f"{odir}/AccessLogs.csv"
 
 
 def old_or_empty_out_files():
     cutoff = datetime.now() - timedelta(days=CUTOFF_DAYS)
-    for m in MODES:
+    for mode in MODES:
         out_file = process_download_logs.get_output_filename(
             CACHEDIR,
-            m['name']
+            mode['name']
         )
         try:
             size = os.path.getsize(out_file)
@@ -46,22 +47,26 @@ def old_or_empty_out_files():
 
 
 def run():
-    # produce output files if they are empty, missing, or older than cutoff
+    """produce output files if they are empty,
+    missing, or older than cutoff.
+    Comment out this if for endto end testing purposes."""
     if old_or_empty_out_files():
         process_download_logs.run()
 
     i = 0
     ses_file = get_sessions_filename(OUTDIR)
     output = outstream(ses_file)
-    for m in MODES:
+    for mode in MODES:
         out_file = process_download_logs.get_output_filename(
             CACHEDIR,
-            m['name']
+            mode['name']
         )
         # only include headers in first iteration
         headers = ['--add-headers'] if i == 0 else []
         i += 1
-        cmd = ['./annotate_download_logs', '--measure', m['measure']] + headers
+        cmd = [
+            './annotate_download_logs', '--measure', mode['measure']
+        ] + headers
         subprocess.call(cmd, stdout=output, stdin=instream(out_file))
         result = subprocess.run(cmd, stdout=output, stdin=instream(out_file))
         result.stdout
