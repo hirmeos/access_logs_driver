@@ -29,8 +29,8 @@ def get_spiders(spiders):
         spiders (_type_): _description_
     """
     path = os.path.join(os.path.dirname(__file__), 'spiders')
-    f = open(path, 'r', encoding='ISO-8859-1')
-    [spiders.add(line.strip("\n")) for line in f.readlines()]
+    with open(path, 'r', encoding='ISO-8859-1') as file:
+        [spiders.add(line.strip("\n")) for line in file.readlines()]
 
 
 def only_successful(request: request) -> request:
@@ -77,7 +77,8 @@ def make_filters(regexes: re, excluded) -> list:
 
 
 def output_stream(filename: str) -> BinaryIO:
-    return open(filename, "w")
+    with open(filename, "w") as file:
+        return file
 
 
 def get_output_filename(odir, name) -> str:

@@ -37,6 +37,18 @@ class Request(object):
         assert response_code >= 100
         assert response_code < 1000
         assert content_length >= 0
+
+        # try:
+        #     assert response_code >= 100
+        #     assert response_code < 1000
+        # except AssertionError as err:
+        #     print(f"Wrong response code, {err}: {response_code}")
+        #     raise
+        # try:
+        #     assert content_length >= 0
+        # except AssertionError as err:
+        #     print(f"Wrong content length, {err}: {content_length}")
+        #     raise
         self.ip_address = ip_address
         self.timestamp = time.strptime(timestamp[:20], '%d/%b/%Y:%H:%M:%S')
         self.method = method
@@ -122,7 +134,7 @@ class LogStream(object):
                 matches = re.compile(self.fallback_re).match(last_five)
             else:
                 print(last_five)
-                raise
+                raise AttributeError
         request = matches.group(1).strip('"')
         response_code = int(matches.group(2))
         content_length = int(matches.group(3))
@@ -179,6 +191,10 @@ class LogStream(object):
                 r'(?P<year>\d{4})-?(?P<month>\d{2})-?(?P<day>\d{2})'
             )
             match = match_pattern.search(path)
+            if match is None:
+                raise AttributeError(
+                    "Your file has to have a date at the end ej: '20230603'"
+                )
             date_dict = match.groupdict()
             timestamp = (
                 f"{date_dict['year']}-{date_dict['month']}-{date_dict['day']}"
