@@ -49,10 +49,9 @@ def no_plus_http(request):
     return "+http" not in request.user_agent
 
 
-def make_filters(regexes: re) -> list:
+def make_filters(regexes: re, excluded) -> list:
     spiders = set()
     get_spiders(spiders)
-    excluded = json.loads(os.getenv('EXCLUDED_IPS'))
 
     def not_known_spider(request):
         return request.user_agent not in spiders
@@ -87,20 +86,22 @@ def get_output_filename(odir, name) -> str:
 
 def run():
     modes = json.loads(os.getenv('MODES'))
-    logdir = os.environ['LOGDIR']
-    odir = os.environ['CACHEDIR']
+    logdir = os.environ.get('LOGDIR')
+    odir = os.environ.get('CACHEDIR')
+    url_prefix = os.environ.get('URL_PREFIX')
+    excluded = json.loads(os.getenv('EXCLUDED_IPS'))
 
     filter_groups = []
     for m in modes:
         filename = get_output_filename(odir, m['name'])
         filters = (
             output_stream(filename),
-            make_filters(m['regex']),
+            make_filters(m['regex'], excluded),
             m['regex']
         )
         filter_groups.append(filters)
 
-    logs = LogStream(logdir, filter_groups)
+    logs = LogStream(logdir, filter_groups, url_prefix)
     logs.to_csvs()
 
 

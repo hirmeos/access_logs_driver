@@ -88,9 +88,11 @@ class Request(object):
 
 
 class LogStream(object):
-    def __init__(self, log_dir: str, filter_groups: list) -> None:
+    def __init__(self, log_dir: str, filter_groups: list, url_prefix) -> None:
         self.log_dir = log_dir
         self.filter_groups = filter_groups
+        self.url_prefix = url_prefix
+
     request_re = re.compile(r'^(.*[^\\]") ([0-9]+) ([0-9]+) (.*)$')
     r_n_ua_re = re.compile(r'^"(.*)" "(.*)" *$')
     fallback_re = r'^()" ([0-9]+) ([0-9]+) (.*)$'
@@ -142,7 +144,7 @@ class LogStream(object):
             method = None
             url = ""
             valid = False
-        url = URL_PREFIX + url.lower()
+        url = self.url_prefix + url.lower()
         return Request(
             ip_address,
             timestamp,
