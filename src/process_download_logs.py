@@ -15,7 +15,6 @@ Output is as a CSV of 4-tuples of type
 import re
 import os
 import json
-from typing import BinaryIO
 from requests import request
 
 from logdata import LogStream
@@ -49,9 +48,10 @@ def no_plus_http(request):
     return "+http" not in request.user_agent
 
 
-def make_filters(regexes: re, excluded) -> list:
+def make_filters(regexes: re) -> list:
     spiders = set()
     get_spiders(spiders)
+    excluded = json.loads(os.getenv('EXCLUDED_IPS'))
 
     def not_known_spider(request):
         return request.user_agent not in spiders
@@ -76,9 +76,8 @@ def make_filters(regexes: re, excluded) -> list:
     ]
 
 
-def output_stream(filename: str) -> BinaryIO:
-    with open(filename, "w") as file:
-        return file
+def output_stream(filename):
+    return open(filename, "w")
 
 
 def get_output_filename(odir, name) -> str:
@@ -89,20 +88,18 @@ def run():
     modes = json.loads(os.getenv('MODES'))
     logdir = os.environ.get('LOGDIR')
     odir = os.environ.get('CACHEDIR')
-    url_prefix = os.environ.get('URL_PREFIX')
-    excluded = json.loads(os.getenv('EXCLUDED_IPS'))
 
     filter_groups = []
     for m in modes:
         filename = get_output_filename(odir, m['name'])
         filters = (
             output_stream(filename),
-            make_filters(m['regex'], excluded),
+            make_filters(m['regex']),
             m['regex']
         )
         filter_groups.append(filters)
 
-    logs = LogStream(logdir, filter_groups, url_prefix)
+    logs = LogStream(logdir, filter_groups)
     logs.to_csvs()
 
 

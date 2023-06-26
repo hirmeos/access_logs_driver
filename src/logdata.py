@@ -32,54 +32,40 @@ class Request(object):
         content_length: int,
         referer: str,
         user_agent: str,
-        valid: bool,
     ):
         assert response_code >= 100
         assert response_code < 1000
         assert content_length >= 0
 
-        # try:
-        #     assert response_code >= 100
-        #     assert response_code < 1000
-        # except AssertionError as err:
-        #     print(f"Wrong response code, {err}: {response_code}")
-        #     raise
-        # try:
-        #     assert content_length >= 0
-        # except AssertionError as err:
-        #     print(f"Wrong content length, {err}: {content_length}")
-        #     raise
         self.ip_address = ip_address
         self.timestamp = time.strptime(timestamp[:20], '%d/%b/%Y:%H:%M:%S')
         self.method = method
-        self.url = self.normalise_url(self.convert_url(url))
+        self.url = self.normalise_url(self.parse_url(url))
         self.response_code = response_code
         self.content_length = content_length
         self.referer = referer
         self.user_agent = user_agent
-        self.valid = valid
 
     @staticmethod
-    def normalise_url(url: str) -> str:
+    def normalise_url(url):
+        """We just avoid the malformed urls from the line_to_request
+        'if len(request.split()) >= 3:' but we have to be safe to don't save
+        wrong values."""
         try:
-            if url[-1] == "/":
-                return url[:-1]
-            return url
+            u = URL_PREFIX + url.lower()
+            return u[:-1] if u[-1] == "/" else u
         except BaseException:
-            print(f"Error parsing: {url}, {sys.stderr}")
+            print("Error parsing: " + url, file=sys.stderr)
             raise
 
     @staticmethod
-    def convert_url(url: str) -> str:
+    def parse_url(url: str) -> str:
         try:
             if url.startswith("http"):
-                u = urllib.parse.urlparse(url).path
-            else:
-                u = url
-            return re.sub(r'^//', '/', re.sub(r'([^:])/+', '\\1/', u))
-        except BaseException:
-            print(f"Error parsing: {url}, {sys.stderr}")
-            raise
+                return urllib.parse.urlparse(url).path
+            return url
+        except ValueError:
+            raise ValueError(f"Error parsing: {url}, {sys.stderr}")
 
     def fmttime(self) -> datetime:
         fmt = "%Y-%m-%d %H:%M:%S"
@@ -100,10 +86,9 @@ class Request(object):
 
 
 class LogStream(object):
-    def __init__(self, log_dir: str, filter_groups: list, url_prefix) -> None:
+    def __init__(self, log_dir: str, filter_groups: list) -> None:
         self.log_dir = log_dir
         self.filter_groups = filter_groups
-        self.url_prefix = url_prefix
 
     request_re = re.compile(r'^(.*[^\\]") ([0-9]+) ([0-9]+) (.*)$')
     r_n_ua_re = re.compile(r'^"(.*)" "(.*)" *$')
@@ -119,44 +104,30 @@ class LogStream(object):
         i.e. this may need to be configurable...
         """
         parts = line.split(" ", 4)
-        _, ip_address, _, _, rest = parts
-        if len(rest) < 30:
-            print(f">>{line}<<")
-        assert rest[28] == " ", line
-        timestamp = rest[1:27]
-
-        assert rest[29] == '"'
-        last_five = rest[30:]
-
-        matches = self.request_re.match(last_five)
-        if not matches:
-            if last_five.startswith('" '):
-                matches = re.compile(self.fallback_re).match(last_five)
-            else:
-                print(last_five)
-                raise AttributeError
+        try:
+            _, ip_address, _, _, rest = parts
+            matches, timestamp = self.check_url_matches(rest, line)
+        except ValueError as err:
+            raise ValueError(
+                "Your file has not the right structure, ", err
+            )
         request = matches.group(1).strip('"')
         response_code = int(matches.group(2))
         content_length = int(matches.group(3))
         referer_and_ua = matches.group(4)
-
         matches = self.r_n_ua_re.match(referer_and_ua)
-        try:
+        if matches:
             referer = matches.group(1)
             user_agent = matches.group(2)
-        except BaseException:
-            print(referer_and_ua)
-            raise
-
-        valid = True
-        try:
-            # version is unused
+        else:
+            raise ValueError(
+                "There wasn't any match with the url"
+            )
+        if len(request.split()) >= 3:
+            # version is unused, also ignore request if it's missing stuff
             method, url, _ = request.split()
-        except ValueError:
-            method = None
-            url = ""
-            valid = False
-        url = self.url_prefix + url.lower()
+        else:
+            return
         return Request(
             ip_address,
             timestamp,
@@ -166,8 +137,21 @@ class LogStream(object):
             content_length,
             referer,
             user_agent,
-            valid,
         )
+
+    def check_url_matches(self, rest, line):
+        """Check the url has got the right structure
+        and it matches the request regex"""
+        if len(rest) < 30:
+            print(f">>{line}<<")
+        timestamp = rest[1:27]
+        if not rest[29] == '"':
+            raise ValueError("Request column malformed")
+        last_five = rest[30:]
+        matches = self.request_re.match(last_five)
+        if not matches:
+            matches = re.compile(self.fallback_re).match(last_five)
+        return matches, timestamp
 
     def unzip(self, filename: str) -> subprocess:
         proc = subprocess.Popen(["zcat", filename], stdout=subprocess.PIPE)
@@ -193,7 +177,7 @@ class LogStream(object):
             match = match_pattern.search(path)
             if match is None:
                 raise AttributeError(
-                    "Your file has to have a date at the end ej: '20230603'"
+                    "Your file has to have a date at the end of it's name"
                 )
             date_dict = match.groupdict()
             timestamp = (
@@ -218,20 +202,18 @@ class LogStream(object):
            `self.filters' to these requests; if any predicate fails, ignore
            the request and do not generate it for downstream processing."""
         for line in self.lines():
-            line_request = self.line_to_request(line.decode('utf-8'))
-            if not line_request.valid:
-                continue
-            for filter_group in self.filter_groups:
-                ok = True
-                stream, filters, regex = filter_group
-                for f in filters:
-                    if not f(line_request):
-                        ok = False
-                        break
-                if not ok:
-                    continue
-                line_request.sanitise_url(regex)
-                yield (stream, line_request)
+            if line_request := self.line_to_request(line.decode('utf-8')):
+                for filter_group in self.filter_groups:
+                    ok = True
+                    stream, filters, regex = filter_group
+                    for f in filters:
+                        if not f(line_request):
+                            ok = False
+                            break
+                    if not ok:
+                        continue
+                    line_request.sanitise_url(regex)
+                    yield (stream, line_request)
 
     def __iter__(self):
         for i in self.relevant_requests():
