@@ -4,17 +4,17 @@
 Parse access logs filtering requests and normalising them.
 """
 
-import re
-import os
 import csv
+import datetime
+import os
+import re
+import subprocess
 import sys
 import time
-import datetime
-import subprocess
+
 from typing import Iterator
 import urllib.error
 import urllib.parse
-
 from requests import request
 
 URL_PREFIX = os.environ.get('URL_PREFIX')
@@ -40,32 +40,23 @@ class Request(object):
         self.ip_address = ip_address
         self.timestamp = time.strptime(timestamp[:20], '%d/%b/%Y:%H:%M:%S')
         self.method = method
-        self.url = self.normalise_url(self.parse_url(url))
+        self.url = self.normalise_url(url)
         self.response_code = response_code
         self.content_length = content_length
         self.referer = referer
         self.user_agent = user_agent
 
     @staticmethod
-    def normalise_url(url):
+    def normalise_url(url: str) -> str:
         """We just avoid the malformed urls from the line_to_request
         'if len(request.split()) >= 3:' but we have to be safe to don't save
         wrong values."""
         try:
-            u = URL_PREFIX + url.lower()
-            return u[:-1] if u[-1] == "/" else u
-        except BaseException:
-            print("Error parsing: " + url, file=sys.stderr)
-            raise
-
-    @staticmethod
-    def parse_url(url: str) -> str:
-        try:
-            if url.startswith("http"):
-                return urllib.parse.urlparse(url).path
+            if url[-1] == "/":
+                return url[:-1]
             return url
-        except ValueError:
-            raise ValueError(f"Error parsing: {url}, {sys.stderr}")
+        except IndexError as err:
+            raise IndexError(f"Error parsing: {url}, {err}")
 
     def fmttime(self) -> datetime:
         fmt = "%Y-%m-%d %H:%M:%S"
@@ -86,9 +77,10 @@ class Request(object):
 
 
 class LogStream(object):
-    def __init__(self, log_dir: str, filter_groups: list) -> None:
+    def __init__(self, log_dir: str, filter_groups: list, url_prefix) -> None:
         self.log_dir = log_dir
         self.filter_groups = filter_groups
+        self.url_prefix = url_prefix
 
     request_re = re.compile(r'^(.*[^\\]") ([0-9]+) ([0-9]+) (.*)$')
     r_n_ua_re = re.compile(r'^"(.*)" "(.*)" *$')
@@ -123,21 +115,31 @@ class LogStream(object):
             raise ValueError(
                 "There wasn't any match with the url"
             )
-        if len(request.split()) >= 3:
+        if len(request.split()) == 3:
             # version is unused, also ignore request if it's missing stuff
             method, url, _ = request.split()
         else:
             return
+        parsed_url = self.parse_url(url, self.url_prefix)
         return Request(
             ip_address,
             timestamp,
             method,
-            url,
+            parsed_url,
             response_code,
             content_length,
             referer,
             user_agent,
         )
+
+    @staticmethod
+    def parse_url(url: str, url_prefix: str) -> str:
+        try:
+            if url.startswith("http"):
+                return url_prefix + urllib.parse.urlparse(url).path.lower()
+            return url_prefix + url.lower()
+        except ValueError:
+            raise ValueError(f"Error parsing: {url}, {sys.stderr}")
 
     def check_url_matches(self, rest, line):
         """Check the url has got the right structure
@@ -230,3 +232,4 @@ class LogStream(object):
         for stream, req in self:
             w = csv_writers[stream]
             w.writerow(req.as_tuple())
+        return streams

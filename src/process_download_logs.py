@@ -12,15 +12,16 @@ Output is as a CSV of 4-tuples of type
  (timestamp * IP address * URL * user agent)
 """
 
-import re
-import os
+import io
 import json
-from requests import request
+import os
+import re
 
+from requests import request
 from logdata import LogStream
 
 
-def get_spiders(spiders):
+def get_spiders(spiders: set) -> None:
     """ Import the list of user agent strings identifying known web crawlers,
     bots, spiders, etc
 
@@ -44,14 +45,13 @@ def method_ok(request: request) -> str:
     return request.method == "GET" or request.method == "POST"
 
 
-def no_plus_http(request):
+def no_plus_http(request: request) -> str:
     return "+http" not in request.user_agent
 
 
-def make_filters(regexes: re) -> list:
+def make_filters(regexes: re, excluded: str) -> list:
     spiders = set()
     get_spiders(spiders)
-    excluded = json.loads(os.getenv('EXCLUDED_IPS'))
 
     def not_known_spider(request):
         return request.user_agent not in spiders
@@ -76,7 +76,7 @@ def make_filters(regexes: re) -> list:
     ]
 
 
-def output_stream(filename):
+def output_stream(filename: str) -> io.TextIOWrapper:
     return open(filename, "w")
 
 
@@ -84,22 +84,28 @@ def get_output_filename(odir, name) -> str:
     return f"{odir}/output_{name}.csv"
 
 
-def run():
+def run() -> None:
+    """
+    Entry point before executing the file logdata and process the
+    content of the .gz files and finally write an output file.
+    """
     modes = json.loads(os.getenv('MODES'))
     logdir = os.environ.get('LOGDIR')
     odir = os.environ.get('CACHEDIR')
+    excluded = json.loads(os.getenv('EXCLUDED_IPS'))
+    url_prefix = os.environ.get('URL_PREFIX')
 
     filter_groups = []
     for m in modes:
         filename = get_output_filename(odir, m['name'])
         filters = (
             output_stream(filename),
-            make_filters(m['regex']),
+            make_filters(m['regex'], excluded),
             m['regex']
         )
         filter_groups.append(filters)
 
-    logs = LogStream(logdir, filter_groups)
+    logs = LogStream(logdir, filter_groups, url_prefix)
     logs.to_csvs()
 
 
