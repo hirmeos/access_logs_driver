@@ -47,7 +47,8 @@ def old_or_empty_out_files():
 
 
 def run():
-    """produce output files if they are empty,
+    """
+    Produce output files if they are empty,
     missing, or older than cutoff.
     Comment out this if for endto end testing purposes."""
     if old_or_empty_out_files():

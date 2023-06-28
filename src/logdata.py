@@ -15,7 +15,6 @@ import time
 from typing import Iterator
 import urllib.error
 import urllib.parse
-from requests import request
 
 URL_PREFIX = os.environ.get('URL_PREFIX')
 
@@ -86,7 +85,7 @@ class LogStream(object):
     r_n_ua_re = re.compile(r'^"(.*)" "(.*)" *$')
     fallback_re = r'^()" ([0-9]+) ([0-9]+) (.*)$'
 
-    def line_to_request(self, line: str) -> request:
+    def line_to_request(self, line: str) -> str:
         """
         The way our logs are formatted requires an additional part.
 
@@ -197,7 +196,8 @@ class LogStream(object):
         for logfile in self.logfile_names():
             data = self.unzip(logfile)
             for line in data.splitlines():
-                yield line
+                if line:
+                    yield line
 
     def relevant_requests(self) -> Iterator[tuple]:
         """Generate a filtered stream of requests; apply the predicate list

@@ -1,5 +1,5 @@
 import csv
-import json
+import gzip
 import os
 import pathlib as pl
 from unittest import TestCase
@@ -30,13 +30,26 @@ class TestLogData(TestCase):
                 "measure": "tag:operas.eu,2018:readership:obp-html",
                 "name": "htmlreader",
                 "regex": [
-                        "https://cjs.sljol.info/articles/10.\\d{4,9}/[-._;()/:a-zA-Z0-9]+",
-                        "https://cjs.sljol.info/articles/abstract/10.\\d{4,9}/[-._;()/:a-zA-Z0-9]+"
+                    (
+                        "https://cjs.sljol.info/articles/10.\\d{4,9}/"
+                        "[-._;()/:a-zA-Z0-9]+"
+                    ),
+                    (
+                        "https://cjs.sljol.info/articles/abstract/10.\\"
+                        "d{4,9}/[-._;()/:a-zA-Z0-9]+"
+                    )
                 ]
             }
         ]
-        self.cache_dir = "tests/files"
+        self.cache_dir = "tests/files/"
+        self.logs_files = self.cache_dir + "logs_test/"
         self.url_prefix = "https://cjs.sljol.info"
+        self.file_output_name = self.cache_dir+"/test_output.csv"
+
+    def create_file_log(self, file_name, content):
+        file = gzip.open(self.logs_files+file_name, 'wb')
+        file.write(content)
+        file.close()
 
     def assertIsFile(self, path):
         if not pl.Path(path).resolve().is_file():
@@ -110,115 +123,166 @@ class TestLogData(TestCase):
             )
         )
 
-    def test_log_stream_creates_csv_file_successfully_with_right_data(
+    def test_log_stream_creates_csv_file_successfully_one_match(
         self
     ) -> None:
         """Test the class LogStream the same way as is executed
         from run() in src/process_download_logs.py including the
         output.csv file creation and it's contents."""
-        logs = self.cache_dir+"/logs/"
-        file_name = self.cache_dir+"/test_output.csv"
+        
+        file_log_name = 'test_access.log-20230606.gz'
+        content = b'cjs.ubiquitypress.com:443 34.90.253.37 - - [03/Jun/2023:04:51:45 +0000] "GET /articles/abstract/10.4038/cjs.v49i1.7705/ HTTP/1.1" 200 49221 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0"'
+        self.create_file_log(file_log_name, content)
         filter_groups = []
         for mode in self.modes:
             filters = (
-                output_stream(file_name),
+                output_stream(self.file_output_name),
                 make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
                 mode['regex']
             )
             filter_groups.append(filters)
-        result = LogStream(logs, filter_groups, self.url_prefix)
+        result = LogStream(self.logs_files, filter_groups, self.url_prefix)
         files = result.to_csvs()
         [file.close() for file in files]
-        self.assertIsFile(self.cache_dir+"/test_output.csv")
-        with open(file_name, 'rt') as csvfile:
+        self.assertIsFile(self.file_output_name)
+        # Assert the csv file has got the right content
+        with open(self.file_output_name, 'rt') as csvfile:
             reader = csv.reader(csvfile, delimiter='.')
             for row in reader:
                 self.assertEqual(
                     row,
-                    ['2023-06-02 06:08:10,34', '90', '253', '37,https://cjs', 'sljol', 'info/articles/abstract/10', '4038/cjs', 'v49i2', '7734,"Mozilla/5', '0 (Linux; Android 10; K) AppleWebKit/537', '36 (KHTML, like Gecko) Chrome/113', '0', '0', '0 Mobile Safari/537', '36"']
+                    [
+                        '2023-06-03 04:51:45,34',
+                        '90',
+                        '253',
+                        '37,https://cjs',
+                        'sljol',
+                        'info/articles/abstract/10',
+                        '4038/cjs',
+                        'v49i1',
+                        '7705,Mozilla/5',
+                        '0 (Windows NT 10',
+                        '0; Win64; x64; rv:109',
+                        '0) Gecko/20100101 Firefox/112',
+                        '0'
+                    ]
                 )
-        # os.remove(self.cache_dir+"/test_output.csv")
+        # Remove the log file and output
+        os.remove(self.logs_files+file_log_name)
+        os.remove(self.cache_dir+"/test_output.csv")
+
+    def test_log_stream_no_match_file_structure_is_ok(self) -> None:
+        """Test the class LogStream the same way as is executed
+        from run() in src/process_download_logs.py including the
+        output.csv file creation and it's contents."""
+        file_log_name = 'test_access.log-20230606.gz'
+        content = b'cjs.tyestset.com:443 34.90.253.37 - - [03/Jun/2023:04:51:45 +0000] "GET /test/test/10.4038/cjs.v49i1.7705/ HTTP/1.1" 200 49221 "-" "test/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) test/20100101 test/112.0"'
+        self.create_file_log(file_log_name, content)
+        filter_groups = []
+        for mode in self.modes:
+            filters = (
+                output_stream(self.file_output_name),
+                make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
+                mode['regex']
+            )
+            filter_groups.append(filters)
+        result = LogStream(self.logs_files, filter_groups, self.url_prefix)
+        files = result.to_csvs()
+        [file.close() for file in files]
+        self.assertIsFile(self.file_output_name)
+        # Assert the csv file has got the right content
+        with open(self.file_output_name, 'rt') as csvfile:
+            reader = csv.reader(csvfile, delimiter='.')
+            for row in reader:
+                self.assertEqual(
+                    row,
+                    ['']
+                )
+        # Remove the log file and output
+        os.remove(self.logs_files+file_log_name)
+        os.remove(self.cache_dir+"/test_output.csv")
 
     def test_log_stream_raises_error_no_matches_timestamp(self) -> None:
         """Test the class LogStream fails because there is no match.
         The file gl_cjs_test_access.log-NODATE.gz should have a date
         at the end."""
-        logs = self.cache_dir+"/logs/"
-        file_name = self.cache_dir+"/test_output.csv"
-        # Rename the file
-        if not os.path.isfile(logs + "gl_cjs_test_access.log-20230603.gz"):
-            raise FileNotFoundError("Missing testing file")
+        
+        file_log_name = "test_access.log-20230606.gz"
+        content = b'cjs.ubiquitypress.com:443 34.90.253.37 - - [03/Jun/2023:04:51:45 +0000] "GET /articles/abstract/10.4038/cjs.v49i1.7705/ HTTP/1.1" 200 49221 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0"'
+        self.create_file_log(file_log_name, content)
         os.rename(
-            logs + "gl_cjs_test_access.log-20230603.gz",
-            logs + "gl_cjs_test_access.log-NODATE.gz"
+            self.logs_files + file_log_name,
+            self.logs_files + "gl_cjs_test_access.log-NODATE.gz"
         )
         filter_groups = []
         for mode in self.modes:
             filters = (
-                output_stream(file_name),
+                output_stream(self.file_output_name),
                 make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
                 mode['regex']
             )
             filter_groups.append(filters)
 
         with self.assertRaises(AttributeError) as err:
-            result = LogStream(logs, filter_groups, self.url_prefix)
+            result = LogStream(self.logs_files, filter_groups, self.url_prefix)
             files = result.to_csvs()
             [file.close() for file in files]
         self.assertEqual(
             str(err.exception),
             "Your file has to have a date at the end of it's name"
         )
-
-        os.rename(
-            logs + "gl_cjs_test_access.log-NODATE.gz",
-            logs + "gl_cjs_test_access.log-20230603.gz"
-        )
+        # Remove the log file and output
+        os.remove(self.logs_files + "gl_cjs_test_access.log-NODATE.gz")
+        os.remove(self.cache_dir+"/test_output.csv")
 
     def test_log_stream_raises_error_no_matches_lines(self) -> None:
         """Test the class LogStream fails because there is no match.
-        The file gl_cjs_test_access.log-NODATE.gz should have a date
-        at the end."""
-        logs = self.cache_dir+"/logs/fail_test_files_1/"
-        file_name = self.cache_dir+"/test_output.csv"
-
+        The line method will raise exception because the structure of
+        the input file is wrong."""
+        file_log_name = "test_access.log-20230606.gz"
+        content = b'test_worng - wrong structure"'
+        self.create_file_log(file_log_name, content)
         filter_groups = []
         for mode in self.modes:
             filters = (
-                output_stream(file_name),
+                output_stream(self.file_output_name),
                 make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
                 mode['regex']
             )
             filter_groups.append(filters)
 
         with self.assertRaises(ValueError) as err:
-            result = LogStream(logs, filter_groups, self.url_prefix)
+            result = LogStream(self.logs_files, filter_groups, self.url_prefix)
             files = result.to_csvs()
             [file.close() for file in files]
         self.assertEqual(
             str(err.exception),
             (
                 "('Your file has not the right structure, ', ValueError("
-                "'not enough values to unpack (expected 5, got 3)'))"
+                "'not enough values to unpack (expected 5, got 4)'))"
             )
         )
+        # Remove the log file and output
+        os.remove(self.logs_files + file_log_name)
+        os.remove(self.cache_dir+"/test_output.csv")
 
     def test_log_stream_raises_error_no_matches_line_to_request(self) -> None:
         """Test the class LogStream fails because there is no match.
-        The content of the files don't have a correct request."""
-        logs = self.cache_dir+"/logs/fail_test_files_2/"
-        file_name = self.cache_dir+"/test_output.csv"
+        The file structure is right but the request is wrong."""
+        file_log_name = "test_access.log-20230606.gz"
+        content = b'cjs.ubiquitypress.com:443 34.90.253.37 - - [02/Jun/2023:08:18:56 +0000] --->ErrorHEAD /articles/abstract/10.4038/cjs.v52i2.8160/ HTTP/1.1" 200 4522 "-" "Scoop.it"'
+        self.create_file_log(file_log_name, content)
         filter_groups = []
         for mode in self.modes:
             filters = (
-                output_stream(file_name),
+                output_stream(self.file_output_name),
                 make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
                 mode['regex']
             )
             filter_groups.append(filters)
 
         with self.assertRaises(ValueError) as err:
-            result = LogStream(logs, filter_groups, self.url_prefix)
+            result = LogStream(self.logs_files, filter_groups, self.url_prefix)
             files = result.to_csvs()
             [file.close() for file in files]
         self.assertEqual(
@@ -228,9 +292,10 @@ class TestLogData(TestCase):
                 "'Request column malformed'))"
             )
         )
-        logs = self.cache_dir+"/logs/fail_test_files_3/"
+        content = b'cjs.ubiquitypress.com:443 34.90.253.37 - - [02/Jun/2023:08:18:56 +0000] --->ErrorHEADtestteststesestsetets "-" "Scoop.it"'
+        self.create_file_log(file_log_name, content)
         with self.assertRaises(ValueError) as err:
-            result = LogStream(logs, filter_groups, self.url_prefix)
+            result = LogStream(self.logs_files, filter_groups, self.url_prefix)
             files = result.to_csvs()
             [file.close() for file in files]
         self.assertEqual(
@@ -245,45 +310,21 @@ class TestLogData(TestCase):
         self
     ) -> None:
         """Test the class LogStream fails because there is no match.
-        The content of the files don't have a correct request."""
-        logs = self.cache_dir+"/logs/fail_test_files_5/"
-        file_name = self.cache_dir+"/test_output.csv"
+        The content of the files doesn't match r_n_ua_re regex."""
+        file_log_name = "test_access.log-20230606.gz"
+        content = b'cjs.ubiquitypress.com:443 34.90.253.37 - - [01/Jun/2023:06:52:43 +0000] "GET /jms/public/journals/1/journalFavicon_en_US.ico HTTP/1.1" 404 5010 "test error!!!"!!!"test error!!!"'
+        self.create_file_log(file_log_name, content)
         filter_groups = []
         for mode in self.modes:
             filters = (
-                output_stream(file_name),
+                output_stream(self.file_output_name),
                 make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
                 mode['regex']
             )
             filter_groups.append(filters)
 
         with self.assertRaises(ValueError) as err:
-            result = LogStream(logs, filter_groups, self.url_prefix)
-            files = result.to_csvs()
-            [file.close() for file in files]
-        self.assertEqual(
-            str(err.exception),
-            "There wasn't any match with the url"
-        )
-
-    def test_log_stream_raises_error_no_unpack_url(
-        self
-    ) -> None:
-        """Test the class LogStream fails because there is no match.
-        The content of the files don't have a correct request."""
-        logs = self.cache_dir+"/logs/fail_test_files_5/"
-        file_name = self.cache_dir+"/test_output.csv"
-        filter_groups = []
-        for mode in self.modes:
-            filters = (
-                output_stream(file_name),
-                make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
-                mode['regex']
-            )
-            filter_groups.append(filters)
-
-        with self.assertRaises(ValueError) as err:
-            result = LogStream(logs, filter_groups, self.url_prefix)
+            result = LogStream(self.logs_files, filter_groups, self.url_prefix)
             files = result.to_csvs()
             [file.close() for file in files]
         self.assertEqual(
@@ -294,19 +335,20 @@ class TestLogData(TestCase):
     def test_log_stream_ignores_reuqest_if_its_missing_parts(
         self
     ) -> None:
-        """Test the class LogStream ignores urls that are missing method,
+        """Test the class LogStream ignores urls that have a missing method,
          url or version."""
-        logs = self.cache_dir+"/logs/fail_test_files_7/"
-        file_name = self.cache_dir+"/test_output.csv"
+        file_log_name = "test_access.log-20230606.gz"
+        content = b'cjs.ubiquitypress.com:443 34.90.253.37 - - [01/Jun/2023:06:52:43 +0000] "GET /jms/public/journals/1/journalFavicon_en_US.ico" 404 5010 "https://cjs.sljol.info/articles/abstract/10.4038/cjs.v52i2.8023/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36"cjs.ubiquitypress.com:443 34.90.253.37 - - [01/Jun/2023:06:52:50 +0000] "GET /jms/public/journals/1/journalFavicon_en_US.ico" 404 5010 "https://cjs.sljol.info/700/volume/52/issue/2/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"cjs.ubiquitypress.com:443 34.90.253.37 - - [01/Jun/2023:06:52:54 +0000] "GET /static/js/libs/waypoints.js" 200 8796 "https://cjs.sljol.info/685/volume/49/issue/5/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36"'
+        self.create_file_log(file_log_name, content)
         filter_groups = []
         for mode in self.modes:
             filters = (
-                output_stream(file_name),
+                output_stream(self.file_output_name),
                 make_filters(mode['regex'], ["8.8.8.8", "9.9.9.9"]),
                 mode['regex']
             )
             filter_groups.append(filters)
 
-        result = LogStream(logs, filter_groups, self.url_prefix)
+        result = LogStream(self.logs_files, filter_groups, self.url_prefix)
         files = result.to_csvs()
         [file.close() for file in files]

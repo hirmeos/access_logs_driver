@@ -17,7 +17,6 @@ import json
 import os
 import re
 
-from requests import request
 from logdata import LogStream
 
 
@@ -33,19 +32,19 @@ def get_spiders(spiders: set) -> None:
         [spiders.add(line.strip("\n")) for line in file.readlines()]
 
 
-def only_successful(request: request) -> request:
+def only_successful(request: str) -> str:
     return request.response_code in [200, 304]
 
 
-def nostar(request: request) -> str:
+def nostar(request: str) -> str:
     return request.url != "*"
 
 
-def method_ok(request: request) -> str:
+def method_ok(request: str) -> str:
     return request.method == "GET" or request.method == "POST"
 
 
-def no_plus_http(request: request) -> str:
+def no_plus_http(request: str) -> str:
     return "+http" not in request.user_agent
 
 
