@@ -14,28 +14,36 @@ Additionally, we convert the URLs to ISBNs and collate request data by date,
 outputting a CSV for ingest via the stats system.
 """
 
-import os
 import csv
-import sys
-import json
-import time
-import httplib2
 import datetime
+import httplib2
+import json
+import os
+import sys
+import time
+from typing import Iterator, Tuple
+
+# Deprecated since version 3.2: https://docs.python.org/3/library/optparse.html
 from optparse import OptionParser
+
+from hirmeos_clients import TokenClient
+
 from geolookup import GeoLookup
 
 
 SESSION_TIMEOUT = int(os.environ['SESSION_TIMEOUT'])
-ROLLOVER        = os.environ['ROLLOVER'] in ('True', 'true', 't', 1)
-URI_API_ENDP    = os.environ['URI_API_ENDP']
-URI_API_USER    = os.environ['URI_API_USER']
-URI_API_PASS    = os.environ['URI_API_PASS']
-AUTH_API_ENDP   = os.environ['AUTH_API_ENDP']
-URI_SCHEME      = os.environ['URI_SCHEME']
-URI_STRICT      = os.environ['URI_STRICT']
+ROLLOVER = os.environ['ROLLOVER'] in ('True', 'true', 't', 1)
+URI_API_ENDP = os.environ['URI_API_ENDP']
+URI_API_USER = os.environ['URI_API_USER']
+URI_API_PASS = os.environ['URI_API_PASS']
+AUTH_API_ENDP = os.environ['AUTH_API_ENDP']
+URI_SCHEME = os.environ['URI_SCHEME']
+URI_STRICT = os.environ['URI_STRICT']
 GEO_LOOKUP_PATH = os.environ.get('GEO_LOOKUP_PATH', None)
-EXCLUDED_URLS   = json.loads(os.getenv('EXCLUDED_URLS'))
-CACHE           = {}
+EXCLUDED_URLS = json.loads(os.getenv('EXCLUDED_URLS'))
+CACHE = {}
+TOKENS_KEY = os.getenv('TOKENS_KEY')
+
 ARGS = [
     {
         'val': '--measure',
@@ -53,11 +61,13 @@ ARGS = [
 ]
 
 
-def get_token(url, email, passwd):
-    h = httplib2.Http()
+def get_token(url: str, email: str, passwd: str) -> json:
+    if TOKENS_KEY:
+        return tokens_client()
+    http = httplib2.Http()
     credentials = {'email': email, 'password': passwd}
     headers = {'content-type': 'application/json'}
-    res, content = h.request(url, 'POST', json.dumps(credentials), headers)
+    res, content = http.request(url, 'POST', json.dumps(credentials), headers)
     try:
         assert res.status == 200
     except AssertionError:
@@ -65,11 +75,24 @@ def get_token(url, email, passwd):
     return json.loads(content.decode('utf-8'))['data'][0]['token']
 
 
-def get_options(args):
+def tokens_client():
+    """Very messy code fix - allow the tokens_client to be used instead of
+    requesting a token from the tokens api.
+    """
+    tokens_client = TokenClient(tokens_key=TOKENS_KEY)
+    return tokens_client.token
+
+
+def get_options(args: list) -> object:
     parser = OptionParser()
     for arg in args:
-        parser.add_option(arg['val'], dest=arg['dest'], default=arg['default'],
-                          action=arg['action'], help=arg['help'])
+        parser.add_option(
+            arg['val'],
+            dest=arg['dest'],
+            default=arg['default'],
+            action=arg['action'],
+            help=arg['help']
+        )
     options, rest = parser.parse_args()
 
     assert rest == []
@@ -77,13 +100,15 @@ def get_options(args):
     return options
 
 
-def url_to_id(url, timestamp):
+def url_to_id(url: str, timestamp: time) -> json:
     if url in CACHE:
         return CACHE[url]
-    req = "%s?uri=%s&filter=uri_scheme:%s&strict=%s" \
-          % (URI_API_ENDP, url, URI_SCHEME, URI_STRICT)
-    h = httplib2.Http()
-    res, content = h.request(req, 'GET', headers={'Authorization': AUTH})
+    req = (
+        f"{URI_API_ENDP}?uri={url}&filter=uri_scheme:"
+        f"{URI_SCHEME}&strict={URI_STRICT}"
+    )
+    http = httplib2.Http()
+    res, content = http.request(req, 'GET', headers={'Authorization': AUTH})
     try:
         assert res.status == 200
     except AssertionError:
@@ -91,14 +116,14 @@ def url_to_id(url, timestamp):
             return []
         r = json.loads(content.decode('utf-8'))
         p = (r['message'], r['parameters']['uri'], timestamp)
-        print("%s: %s (%s)" % p, file=sys.stderr)
+        print(f"{p}: {sys.stderr}")
         sys.exit(1)
     entry = json.loads(content.decode('utf-8'))['data']
     CACHE[url] = entry
     return entry
 
 
-def resolve(get_id):
+def resolve(get_id: str) -> Iterator[Tuple]:
     """
     Read in CSV data from stdin; lazily return a stream of tuples of
     type: (timestamp * ip_address * uri * str), where the final <str>
@@ -107,9 +132,9 @@ def resolve(get_id):
 
     `get_id` is a callback of type (url -> timestamp -> node | None)
     """
-    r = csv.reader(sys.stdin)
+    stream = csv.reader(sys.stdin)
 
-    for timestamp, ip_address, url, agent in r:
+    for timestamp, ip_address, url, agent in stream:
         identifiers = get_id(url, timestamp)
 
         excluded = identifiers == []
@@ -122,7 +147,11 @@ def resolve(get_id):
         yield (ds, ip_address, identifiers, agent)
 
 
-def strip_sessions(get_id, session_timeout, rollover):
+def strip_sessions(
+    get_id: str,
+    session_timeout: int,
+    rollover: int
+) -> Iterator:
     """
     Take a lazy stream whose items are of type:
      (timestamp * ip_address * uri * str)
@@ -181,7 +210,7 @@ def project_hits():
     return hits
 
 
-def run(measure, add_headers):
+def run(measure: object, add_headers: object) -> None:
     hits = project_hits()
 
     w = csv.writer(sys.stdout)

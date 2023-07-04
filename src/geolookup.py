@@ -11,7 +11,7 @@ from sqlite3 import dbapi2 as sqlite
 
 
 class GeoLookup(object):
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         if path is None:
             self.db = None
             return
@@ -26,7 +26,7 @@ class GeoLookup(object):
         '''
         self.prefix = 'urn:iso:std:3166:-2:'
 
-    def lookup_country(self, ip_address, date):
+    def lookup_country(self, ip_address: str, date: datetime) -> str:
         if self.db is None:
             return ''
         time_now = date.timestamp()
@@ -37,11 +37,10 @@ class GeoLookup(object):
         row = self.cursor.fetchone()
         if row is None:
             return ''
-        else:
-            return self.prefix + row[0]
+        return self.prefix + row[0]
 
 
-def run():
+def run() -> None:
     _, ip_address, timestamp = sys.argv
     ts = time.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
     ds = datetime.datetime(*ts[:6])
